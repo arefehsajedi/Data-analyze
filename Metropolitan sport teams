@@ -1,0 +1,486 @@
+
+## Description
+In this assignment, you must read a file of metropolitan regions and associated sports teams from [assets/wikipedia_data.html](assets/wikipedia_data.html) and answer some questions about each metropolitan region. Each of these regions may have one or more teams from the "Big 4": NFL (football, in [assets/nfl.csv](assets/nfl.csv)), MLB (baseball, in [assets/mlb.csv](assets/mlb.csv)), NBA (basketball, in [assets/nba.csv](assets/nba.csv) or NHL (hockey, in [assets/nhl.csv](assets/nhl.csv)). Please keep in mind that all questions are from the perspective of the metropolitan region, and that this file is the "source of authority" for the location of a given sports team. Thus teams which are commonly known by a different area (e.g. "Oakland Raiders") need to be mapped into the metropolitan region given (e.g. San Francisco Bay Area). This will require some human data understanding outside of the data you've been given (e.g. you will have to hand-code some names, and might need to google to find out where teams are)!
+
+For each sport, I would like you to answer the question: **What is the win/loss ratio's correlation with the population of the city it is in?** Win/Loss ratio refers to the number of wins over the number of wins plus the number of losses. Remember that to calculate the correlation with [`pearsonr`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html), so you are going to send in two ordered lists of values, the populations from the wikipedia_data.html file and the win/loss ratio for a given sport in the same order. Average the win/loss ratios for those cities which have multiple teams of a single sport. Each sport is worth an equal amount in this assignment (20%\*4=80%) of the grade for this assignment. You should only use data **from year 2018** for your analysis -- this is important!
+
+## Notes
+
+1. Please don't include data about the MLS or CFL in any of the work you are doing, we're only interested in the Big 4 in this assignment.
+2. I highly suggest that you first tackle the four correlation questions in order, as they are all similar and worth the majority of your grades for this assignment. This is by design!
+3. It's fair game to talk with peers about high-level strategy as well as the relationship between metropolitan areas and sports teams. However, do not post code-solving aspects of the assignment (including such as dictionaries mapping areas to teams, or regexes which will clean up names).
+4. There may be more teams than the assert statements test, remember to collapse multiple teams in one city into a single value!
+
+
+
+##################################################################################################################################################33
+## Question 1
+For this question, calculate the win/loss ratio's correlation with the population of the city it is in for the **NHL** using **2018** data.
+
+#RUN FIRST, installs a missing library
+import sys
+!{sys.executable} -m pip install lxml==4.4.1
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+
+mlb_df=pd.read_csv("assets/mlb.csv")
+cities = pd.read_html("assets/wikipedia_data.html")[1]
+cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+
+#cleaning data
+cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+columns_to_keep = ['team', 'W', 'L', 'year']
+mlb_df= mlb_df.drop(columns=[col for col in mlb_df.columns if col not in columns_to_keep])
+mlb_df= mlb_df[mlb_df['year']==2018]
+mlb_df["team"]= mlb_df["team"].str.split().str[-2:].apply(' '.join)
+for i in range(len(mlb_df)):
+    words = mlb_df.loc[i, "team"].split()
+    if words[-1] != "White Sox":
+        mlb_df.loc[i, "team"] = words[-1] 
+mlb_df.loc[0, 'team'] = 'Red Sox'
+mlb_df.loc[8, 'team'] = 'White Sox'
+mlb_df.loc[3, 'team'] = 'Blue Jays'
+cities["MLB"] = cities["MLB"].apply(lambda x: x.split(" "))
+cities = cities.explode("MLB")
+cities['MLB'] = cities['MLB'].replace('White', 'White Sox')
+cities['MLB'] = cities['MLB'].replace('Blue', 'Blue Jays')
+cities.loc[(cities['Metropolitan area'] == 'Boston') & (cities['MLB'] == 'Red'), 'MLB'] = 'Red Sox'
+cities = cities[cities['MLB'] != 'Sox']
+merged= pd.merge(mlb_df, cities, left_on= 'team', right_on= 'MLB')
+merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+merged = merged.drop_duplicates(subset='Metropolitan area')
+merged['W/L%']= merged['W/L%'].astype(float)
+merged['Population']= merged['Population'].astype(float)
+merged
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+
+nfl_df=pd.read_csv("assets/nfl.csv")
+nba_df=pd.read_csv("assets/nba.csv")
+mlb_df=pd.read_csv("assets/mlb.csv")
+
+
+Big4='NHL'
+
+def nhl_correlation():
+    # raise NotImplementedError()
+    #loading data
+    nhl_df=pd.read_csv("assets/nhl.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nhl_df= nhl_df.drop(columns=[col for col in nhl_df.columns if col not in columns_to_keep])
+    nhl_df= nhl_df[nhl_df['year']==2018]
+    nhl_df["team"]= nhl_df["team"].str.split().str[-1]
+    nhl_df["team"]= nhl_df["team"].str.replace(r"\*$", "", regex=True)
+    cities["NHL"] = cities["NHL"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NHL")
+    
+    merged= pd.merge(nhl_df, cities, left_on= 'team', right_on= 'NHL')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+    
+    merged['W/L%'] = pd.to_numeric(merged['W/L%'], errors='coerce')
+    
+    population_by_region = merged['Population'] # pass in metropolitan area population from cities
+    win_loss_by_region = merged['W/L%'] # pass in win/loss ratio from _df in the same order as cities["Metropolitan area"]   
+
+    assert len(population_by_region) == len(
+        win_loss_by_region), "Q1: Your lists must be the same length"
+    assert len(population_by_region
+               ) == 28, "Q1: There should be 28 teams being analysed for NHL"
+
+    return stats.pearsonr(population_by_region, win_loss_by_region)[0]
+nhl_correlation()
+
+
+##############################################################################################################################################
+#Question 2
+#For this question, calculate the win/loss ratio's correlation with the population of the city it is in for the NBA using 2018 data.
+
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+Big4='NBA'
+
+def nba_correlation():
+    #loading data
+    nba_df=pd.read_csv("assets/nba.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nba_df= nba_df.drop(columns=[col for col in nba_df.columns if col not in columns_to_keep])
+    nba_df= nba_df[nba_df['year']==2018]
+    nba_df["team"]= nba_df["team"].str.replace(r'\*.*', '', regex=True)
+    nba_df["team"]= nba_df["team"].str.replace(r'Â.*|\s\(\d+\)', '', regex=True)
+    nba_df["team"]= nba_df["team"].str.split().str[-1]
+    cities["NBA"] = cities["NBA"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NBA")
+    
+    merged= pd.merge(nba_df, cities, left_on= 'team', right_on= 'NBA')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+        
+    population_by_region = merged['Population'] # pass in metropolitan area population from cities
+    win_loss_by_region = merged['W/L%'] # pass in win/loss ratio from _df in the same order as cities["Metropolitan area"]   
+
+    assert len(population_by_region) == len(win_loss_by_region), "Q2: Your lists must be the same length"
+    assert len(population_by_region) == 28, "Q2: There should be 28 teams being analysed for NBA"
+
+    return stats.pearsonr(population_by_region, win_loss_by_region)[0]
+nba_correlation()
+
+
+##################################################################################################################################3
+#Question 3
+#For this question, calculate the win/loss ratio's correlation with the population of the city it is in for the MLB using 2018 data.
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+Big4='MLB'
+
+def mlb_correlation(): 
+    #loading data
+    mlb_df=pd.read_csv("assets/mlb.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    mlb_df= mlb_df.drop(columns=[col for col in mlb_df.columns if col not in columns_to_keep])
+    mlb_df= mlb_df[mlb_df['year']==2018]
+    mlb_df["team"]= mlb_df["team"].str.split().str[-2:].apply(' '.join)
+    for i in range(len(mlb_df)):
+        words = mlb_df.loc[i, "team"].split()
+        if words[-1] != "White Sox":
+            mlb_df.loc[i, "team"] = words[-1] 
+    mlb_df.loc[0, 'team'] = 'Red Sox'
+    mlb_df.loc[8, 'team'] = 'White Sox'
+    mlb_df.loc[3, 'team'] = 'Blue Jays'
+    cities["MLB"] = cities["MLB"].apply(lambda x: x.split(" "))
+    cities = cities.explode("MLB")
+    cities['MLB'] = cities['MLB'].replace('White', 'White Sox')
+    cities['MLB'] = cities['MLB'].replace('Blue', 'Blue Jays')
+    cities.loc[(cities['Metropolitan area'] == 'Boston') & (cities['MLB'] == 'Red'), 'MLB'] = 'Red Sox'
+    cities = cities[cities['MLB'] != 'Sox']
+    merged= pd.merge(mlb_df, cities, left_on= 'team', right_on= 'MLB')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+        
+    population_by_region = merged['Population'] # pass in metropolitan area population from cities
+    win_loss_by_region = merged['W/L%'] # pass in win/loss ratio from _df in the same order as cities["Metropolitan area"]   
+
+    assert len(population_by_region) == len(win_loss_by_region), "Q3: Your lists must be the same length"
+    assert len(population_by_region) == 26, "Q3: There should be 26 teams being analysed for MLB"
+    
+    return stats.pearsonr(population_by_region, win_loss_by_region)[0]
+mlb_correlation()
+
+
+#######################################################################################################################3
+#Question 4
+#For this question, calculate the win/loss ratio's correlation with the population of the city it is in for the NFL using 2018 data.
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+
+Big4='NFL'
+
+def nfl_correlation():
+    #loading data
+    nfl_df=pd.read_csv("assets/nfl.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nfl_df= nfl_df.drop(columns=[col for col in nfl_df.columns if col not in columns_to_keep])
+    nfl_df= nfl_df[nfl_df['year']==2018]
+    nfl_df["team"]= nfl_df["team"].str.split().str[-1]
+    nfl_df["team"] = nfl_df["team"].str.replace(r"[*+]+$", "", regex=True)
+    cities["NFL"] = cities["NFL"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NFL")
+    
+    merged= pd.merge(nfl_df, cities, left_on= 'team', right_on= 'NFL')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+    
+    merged['W/L%'] = pd.to_numeric(merged['W/L%'], errors='coerce')
+    
+    population_by_region = merged['Population'] # pass in metropolitan area population from cities
+    win_loss_by_region = merged['W/L%'] # pass in win/loss ratio from _df in the same order as cities["Metropolitan area"]   
+
+    assert len(population_by_region) == len(win_loss_by_region), "Q4: Your lists must be the same length"
+    assert len(population_by_region) == 29, "Q4: There should be 29 teams being analysed for NFL"
+
+    return stats.pearsonr(population_by_region, win_loss_by_region)[0]
+nfl_correlation()
+
+
+#####################################################################################################
+#Question 5
+#In this question I would like you to explore the hypothesis that given that an area has two sports teams in different sports, those teams will perform the same within their respective sports. How I would like to see this explored is with a series of paired t-tests (so use ttest_rel) between all pairs of sports. Are there any sports where we can reject the null hypothesis? Again, average values where a sport has multiple teams in one region. Remember, you will only be including, for each sport, cities which have teams engaged in that sport, drop others as appropriate. This question is worth 20% of the grade for this assignment.
+
+
+import pandas as pd
+import numpy as np
+import scipy.stats as stats
+import re
+
+cities = pd.read_html("assets/wikipedia_data.html")[1]
+cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+cities.rename(columns={"Population (2016 est.)[8]": "Population"},
+              inplace=True)
+cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+cities['NHL'] = cities['NHL'].str.replace(r"\[.*\]", "")
+
+
+def nhl_df():
+    # raise NotImplementedError()
+    #loading data
+    nhl_df=pd.read_csv("assets/nhl.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nhl_df= nhl_df.drop(columns=[col for col in nhl_df.columns if col not in columns_to_keep])
+    nhl_df= nhl_df[nhl_df['year']==2018]
+    nhl_df["team"]= nhl_df["team"].str.split().str[-1]
+    nhl_df["team"]= nhl_df["team"].str.replace(r"\*$", "", regex=True)
+    cities["NHL"] = cities["NHL"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NHL")
+    
+    merged= pd.merge(nhl_df, cities, left_on= 'team', right_on= 'NHL')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float) 
+
+    return merged
+
+
+
+def nba_df():
+    #loading data
+    nba_df=pd.read_csv("assets/nba.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nba_df= nba_df.drop(columns=[col for col in nba_df.columns if col not in columns_to_keep])
+    nba_df= nba_df[nba_df['year']==2018]
+    nba_df["team"]= nba_df["team"].str.replace(r'\*.*', '', regex=True)
+    nba_df["team"]= nba_df["team"].str.replace(r'Â.*|\s\(\d+\)', '', regex=True)
+    nba_df["team"]= nba_df["team"].str.split().str[-1]
+    cities["NBA"] = cities["NBA"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NBA")
+    
+    merged= pd.merge(nba_df, cities, left_on= 'team', right_on= 'NBA')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+        
+    return merged
+
+
+
+def mlb_df(): 
+    #loading data
+    mlb_df=pd.read_csv("assets/mlb.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    mlb_df= mlb_df.drop(columns=[col for col in mlb_df.columns if col not in columns_to_keep])
+    mlb_df= mlb_df[mlb_df['year']==2018]
+    mlb_df["team"]= mlb_df["team"].str.split().str[-2:].apply(' '.join)
+    for i in range(len(mlb_df)):
+        words = mlb_df.loc[i, "team"].split()
+        if words[-1] != "White Sox":
+            mlb_df.loc[i, "team"] = words[-1] 
+    mlb_df.loc[0, 'team'] = 'Red Sox'
+    mlb_df.loc[8, 'team'] = 'White Sox'
+    mlb_df.loc[3, 'team'] = 'Blue Jays'
+    cities["MLB"] = cities["MLB"].apply(lambda x: x.split(" "))
+    cities = cities.explode("MLB")
+    cities['MLB'] = cities['MLB'].replace('White', 'White Sox')
+    cities['MLB'] = cities['MLB'].replace('Blue', 'Blue Jays')
+    cities.loc[(cities['Metropolitan area'] == 'Boston') & (cities['MLB'] == 'Red'), 'MLB'] = 'Red Sox'
+    cities = cities[cities['MLB'] != 'Sox']
+    merged= pd.merge(mlb_df, cities, left_on= 'team', right_on= 'MLB')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+        
+
+    return merged
+
+def nfl_df():
+    #loading data
+    nfl_df=pd.read_csv("assets/nfl.csv")
+    cities = pd.read_html("assets/wikipedia_data.html")[1]
+    cities = cities.iloc[:-1, [0, 3, 5, 6, 7, 8]]
+    
+    #cleaning data
+    cities["NHL"] = cities["NHL"].str.replace(r"\[.*\]", "")
+    cities['NFL'] = cities['NFL'].str.replace(r"\[.*\]", "")
+    cities['MLB'] = cities['MLB'].str.replace(r"\[.*\]", "")
+    cities['NBA'] = cities['NBA'].str.replace(r"\[.*\]", "")
+    cities.rename(columns={"Population (2016 est.)[8]": "Population"}, inplace=True)
+
+
+    columns_to_keep = ['team', 'W', 'L', 'year']
+    nfl_df= nfl_df.drop(columns=[col for col in nfl_df.columns if col not in columns_to_keep])
+    nfl_df= nfl_df[nfl_df['year']==2018]
+    nfl_df["team"]= nfl_df["team"].str.split().str[-1]
+    nfl_df["team"] = nfl_df["team"].str.replace(r"[*+]+$", "", regex=True)
+    cities["NFL"] = cities["NFL"].apply(lambda x: x.split(" "))
+    cities = cities.explode("NFL")
+    
+    merged= pd.merge(nfl_df, cities, left_on= 'team', right_on= 'NFL')
+    merged['W\L']=merged['W'].astype(int)/(merged['W'].astype(int)  + merged['L'].astype(int))
+    grouped_df = merged.groupby('Metropolitan area')['W\L'].mean()
+    merged['W/L%'] = merged['Metropolitan area'].map(grouped_df)
+    merged = merged.drop_duplicates(subset='Metropolitan area')
+    merged['W/L%']= merged['W/L%'].astype(float)
+    merged['Population']= merged['Population'].astype(float)
+
+    return merged
+
+def create_df(sport):
+    if sport =='NFL':
+        return nfl_df()
+    elif sport =='NBA':
+        return nba_df()
+    elif sport =='NHL':
+        return nhl_df()
+    elif sport =='MLB':
+        return mlb_df()
+    else:
+        print("ERROR with intput!")
+
+
+def sports_team_performance():
+    # Note: p_values is a full dataframe, so df.loc["NFL","NBA"] should be the same as df.loc["NBA","NFL"] and
+    # df.loc["NFL","NFL"] should return np.nan
+    sports = ['NFL', 'NBA', 'NHL', 'MLB']
+    p_values = pd.DataFrame({k:np.nan for k in sports}, index=sports)
+    
+    for i in sports:
+        for j in sports:
+            if i !=j :
+                merge=pd.merge(create_df(i),create_df(j),'inner', on = ['Metropolitan area'])
+                p_values.loc[i, j]=stats.ttest_rel(merge['W/L%_x'],merge['W/L%_y'])[1]
+
+    
+    assert abs(p_values.loc["NBA", "NHL"] - 0.02) <= 1e-2, "The NBA-NHL p-value should be around 0.02"
+    assert abs(p_values.loc["MLB", "NFL"] - 0.80) <= 1e-2, "The MLB-NFL p-value should be around 0.80"
+    return p_values
+sports_team_performance()
